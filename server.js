@@ -5,19 +5,26 @@ const bodyParser = require("body-parser");
 const bcrypt = require("bcryptjs");
 
 const app = express();
-app.use(cors());
+
+// ⭐ FIX CORS for Render
+app.use(cors({
+  origin: "*", // allow frontend requests from anywhere
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type"],
+}));
+
 app.use(bodyParser.json());
 
-// MongoDB Connection
-mongoose.connect("mongodb://localhost:27017/simple_app")
+// ⭐ IMPORTANT: Use environment variable for MongoDB (Render-safe)
+mongoose.connect(process.env.MONGO_URL || "mongodb://localhost:27017/simple_app")
   .then(() => console.log("MongoDB Connected"))
-  .catch(err => console.log(err));
+  .catch(err => console.log("MongoDB Error:", err));
 
 // Schema
 const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
-  password: { type: String, required: true } // hashed password will be stored
+  password: { type: String, required: true }
 });
 
 const User = mongoose.model("User", UserSchema);
@@ -27,13 +34,11 @@ app.post("/signup", async (req, res) => {
   const { name, email, password } = req.body;
 
   try {
-    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    // Hash password before saving
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await User.create({
@@ -53,13 +58,11 @@ app.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // Find user
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    // Compare raw password with hashed password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid credentials" });
@@ -71,4 +74,6 @@ app.post("/login", async (req, res) => {
   }
 });
 
-app.listen(5000, () => console.log("Server running on port 5000"));
+// ⭐ FIX: Use dynamic port for Render
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
